@@ -2,6 +2,8 @@
 
 stack: Ruby on Rails: JavaScript - Ruby - SQLite - Rails
 
+rails new neighborly_things_library --api --database=sqlite3 -T
+
 ```
 minikube start --cni=calico --cpus=2 --memory=4096
 
