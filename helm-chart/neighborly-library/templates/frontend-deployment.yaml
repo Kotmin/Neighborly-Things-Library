@@ -2,7 +2,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: {{ include "nl.frontendName" . }}
-  namespace: {{ include "nl.namespace" . }}
+  namespace: {{ .Release.Namespace }}
   labels:
     app: {{ include "nl.frontendName" . }}
 spec:

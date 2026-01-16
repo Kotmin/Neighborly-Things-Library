@@ -2,7 +2,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: rails-config
-  namespace: {{ include "nl.namespace" . }}
+  namespace: {{ .Release.Namespace }}
 data:
 {{- range $k, $v := .Values.backend.env }}
   {{ $k }}: {{ $v | quote }}
