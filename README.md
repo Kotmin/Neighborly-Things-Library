@@ -45,3 +45,5 @@ minikube tunnel
 - `docs/BEST_PRACTICES.md`
 - `docs/snippets/*.md`
 
+
+Setting up minikube (1.37.0-0) 
