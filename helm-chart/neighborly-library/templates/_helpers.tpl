@@ -1,6 +1,7 @@
 {{- define "nl.namespace" -}}
-{{- .Values.namespace | default "library" -}}
+{{- .Release.Namespace -}}
 {{- end -}}
+
 
 {{- define "nl.backendName" -}}
 {{- .Values.backend.name | default "rails-backend" -}}
