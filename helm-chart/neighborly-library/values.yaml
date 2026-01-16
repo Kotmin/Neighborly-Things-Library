@@ -8,7 +8,7 @@ backend:
   # PVC for SQLite file
   storage:
     size: 1Gi
-    mountPath: /app/storage
+    mountPath: /rails/storage
     # Rails will use this file via DATABASE_URL
     databaseUrl: sqlite3:/rails/storage/production.sqlite3
   resources:
