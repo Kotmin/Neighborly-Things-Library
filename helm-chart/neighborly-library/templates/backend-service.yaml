@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "nl.backendName" . }}
+  namespace: {{ include "nl.namespace" . }}
+  labels:
+    app: {{ include "nl.backendName" . }}
+spec:
+  clusterIP: None
+  selector:
+    app: {{ include "nl.backendName" . }}
+  ports:
+    - name: http
+      port: {{ .Values.backend.port }}
+      targetPort: {{ .Values.backend.port }}

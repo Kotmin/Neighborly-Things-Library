@@ -1,0 +1,22 @@
+{{- if .Values.ingress.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: library-ingress
+  namespace: {{ include "nl.namespace" . }}
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: {{ ternary "true" "false" .Values.ingress.sslRedirect | quote }}
+spec:
+  ingressClassName: {{ .Values.ingress.className | quote }}
+  rules:
+    - host: {{ .Values.ingress.host | quote }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "nl.frontendName" . }}
+                port:
+                  number: 80
+{{- end }}

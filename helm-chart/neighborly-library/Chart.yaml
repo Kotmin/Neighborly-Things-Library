@@ -1,0 +1,6 @@
+apiVersion: v2
+name: neighborly-library
+description: Neighborly Things Library (Rails + SQLite + Nginx) - Labs 1-12
+type: application
+version: 0.1.0
+appVersion: "1.0.0"

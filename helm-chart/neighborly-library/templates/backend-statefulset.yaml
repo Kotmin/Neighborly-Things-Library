@@ -1,0 +1,66 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "nl.backendName" . }}
+  namespace: {{ include "nl.namespace" . }}
+  labels:
+    app: {{ include "nl.backendName" . }}
+spec:
+  serviceName: {{ include "nl.backendName" . }}
+  replicas: {{ .Values.backend.replicas }}
+  selector:
+    matchLabels:
+      app: {{ include "nl.backendName" . }}
+  template:
+    metadata:
+      labels:
+        app: {{ include "nl.backendName" . }}
+    spec:
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: rails
+          image: {{ .Values.backend.image | quote }}
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: {{ .Values.backend.port }}
+          envFrom:
+            - configMapRef:
+                name: rails-config
+            - secretRef:
+                name: rails-secrets
+          volumeMounts:
+            - name: sqlite-data
+              mountPath: {{ .Values.backend.storage.mountPath | quote }}
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: {{ .Values.backend.port }}
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            timeoutSeconds: 2
+            failureThreshold: 6
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: {{ .Values.backend.port }}
+            initialDelaySeconds: 20
+            periodSeconds: 10
+            timeoutSeconds: 2
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: {{ .Values.backend.resources.requests.cpu | quote }}
+              memory: {{ .Values.backend.resources.requests.memory | quote }}
+            limits:
+              cpu: {{ .Values.backend.resources.limits.cpu | quote }}
+              memory: {{ .Values.backend.resources.limits.memory | quote }}
+  volumeClaimTemplates:
+    - metadata:
+        name: sqlite-data
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        resources:
+          requests:
+            storage: {{ .Values.backend.storage.size | quote }}
