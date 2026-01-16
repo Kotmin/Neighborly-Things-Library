@@ -2,6 +2,13 @@
 
 stack: Ruby on Rails: JavaScript - Ruby - SQLite - Rails
 
+
+## To clone repo with proper submodules use
+``` bash
+git clone --recurse-submodules https://github.com/Kotmin/Neighborly-Things-Library
+
+```
+
 rails new neighborly_things_library --api --database=sqlite3 -T
 
 ```
