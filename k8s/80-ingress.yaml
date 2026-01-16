@@ -2,10 +2,11 @@ apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: neighborly-ingress
-  namespace: neighborly
+  namespace: library
 spec:
+  ingressClassName: nginx
   rules:
-    - host: neighborly.local
+    - host: library.local
       http:
         paths:
           - path: /

@@ -2,7 +2,7 @@ apiVersion: apps/v1
 kind: StatefulSet
 metadata:
   name: rails-backend
-  namespace: neighborly
+  namespace: library
 spec:
   serviceName: rails-backend
   replicas: 1
@@ -19,7 +19,7 @@ spec:
           image: neighborly-backend:latest
           imagePullPolicy: IfNotPresent
           ports:
-            - containerPort: 3000
+            - containerPort: 80
               name: http
           envFrom:
             - configMapRef:
@@ -28,14 +28,14 @@ spec:
                 name: rails-secrets
           env:
             - name: DATABASE_URL
-              value: "sqlite3:/data/production.sqlite3"
+              value: "sqlite3:/app/storage/production.sqlite3"
           volumeMounts:
             - name: sqlite-data
-              mountPath: /data
+              mountPath: /app/storage
           readinessProbe:
             httpGet:
               path: /healthz
-              port: 3000
+              port: 80
             initialDelaySeconds: 10
             periodSeconds: 5
             timeoutSeconds: 2
@@ -43,7 +43,7 @@ spec:
           livenessProbe:
             httpGet:
               path: /healthz
-              port: 3000
+              port: 80
             initialDelaySeconds: 20
             periodSeconds: 10
             timeoutSeconds: 2
@@ -64,4 +64,4 @@ spec:
         resources:
           requests:
             storage: 1Gi
-        storageClassName: standard
+        # Use cluster default StorageClass (Minikube provisions dynamically)
