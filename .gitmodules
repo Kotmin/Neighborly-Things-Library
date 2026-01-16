@@ -1,0 +1,3 @@
+[submodule "neighborly_things_library"]
+	path = neighborly_things_library
+	url = https://github.com/Kotmin/neighborly_things_library.git
