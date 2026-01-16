@@ -19,4 +19,15 @@ spec:
                 name: {{ include "nl.frontendName" . }}
                 port:
                   number: 80
+    {{- if .Values.ingress.catchAll }}
+    - http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "nl.frontendName" . }}
+                port:
+                  number: 80
+    {{- end }}
 {{- end }}

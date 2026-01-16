@@ -1,0 +1,14 @@
+{{- if .Values.frontend.static.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: frontend-static
+  namespace: {{ include "nl.namespace" . }}
+data:
+  index.html: |-
+{{ .Files.Get "files/frontend/index.html" | indent 4 }}
+  app.js: |-
+{{ .Files.Get "files/frontend/app.js" | indent 4 }}
+  styles.css: |-
+{{ .Files.Get "files/frontend/styles.css" | indent 4 }}
+{{- end }}

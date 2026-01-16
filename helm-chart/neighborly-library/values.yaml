@@ -32,6 +32,8 @@ frontend:
   image: nginx:1.27
   port: 80
   replicas: 2
+  static:
+    enabled: true
   resources:
     requests:
       cpu: 50m
@@ -49,6 +51,7 @@ ingress:
   enabled: true
   className: nginx
   host: library.local
+  catchAll: true
   sslRedirect: false
 
 networkPolicy:
