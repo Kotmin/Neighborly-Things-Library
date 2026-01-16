@@ -10,7 +10,7 @@ backend:
     size: 1Gi
     mountPath: /app/storage
     # Rails will use this file via DATABASE_URL
-    databaseUrl: sqlite3:/app/storage/production.sqlite3
+    databaseUrl: sqlite3:/rails/storage/production.sqlite3
   resources:
     requests:
       cpu: 100m

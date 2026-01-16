@@ -17,6 +17,8 @@ spec:
         app: {{ include "nl.backendName" . }}
     spec:
       terminationGracePeriodSeconds: 30
+      securityContext:
+        fsGroup: 1000
       containers:
         - name: rails
           image: {{ .Values.backend.image | quote }}

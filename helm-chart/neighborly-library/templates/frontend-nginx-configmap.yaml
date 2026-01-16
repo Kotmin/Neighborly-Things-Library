@@ -15,7 +15,7 @@ data:
       }
 
       location /api/ {
-        proxy_pass http://{{ include "nl.backendName" . }}.{{ include "nl.namespace" . }}.svc.cluster.local:{{ .Values.backend.port }};
+        proxy_pass http://{{ include "nl.backendName" . }}-svc.{{ .Release.Namespace }}.svc.cluster.local:80;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
