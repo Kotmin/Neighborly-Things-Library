@@ -1,36 +1,61 @@
 # K8s/Helm Playbook (Neighborly Things Library)
 
 This repository contains:
+
 - `k8s/` – plain Kubernetes manifests (declarative baseline)
 - `helm-chart/neighborly-library/` – Helm Chart (Lab 11) generating equivalent resources
 - `neighborly_things_library/` – **git submodule** with the full Rails application (backend)
+- `frontend/` – minimal static UI (HTML/CSS/JS) served by Nginx (frontend image)
 
 ## Goals (PRD, Labs 1–12)
+
 - **Backend**: Rails + SQLite file DB -> `StatefulSet` + `PVC` (persistence)
 - **Frontend**: Nginx proxy / static -> `Deployment` + `RollingUpdate` + `HPA` (autoscaling)
 - **Security**: `NetworkPolicy` default-deny, allow only **Ingress -> Frontend -> Backend**
 - **External access**: `Ingress` on `library.local`
 
 ## Minikube bootstrap
+
 ```bash
 minikube start --network-plugin=cni --cni=calico --cpus=2 --memory=4096
 minikube addons enable ingress
 minikube addons enable metrics-server
 ```
 
+## Build images into Minikube Docker (recommended)
+
+```bash
+git submodule update --init --recursive
+
+eval "$(minikube docker-env)"
+
+cd neighborly_things_library
+docker build -t neighborly-backend:latest .
+```
+
+Frontend uses the public `nginx:1.27` image and mounts static UI from ConfigMap (`frontend-static`).
+You can optionally build a self-contained frontend image from `frontend/`, but it is not required.
+
 ### Ingress access tip (Minikube)
+
 Depending on driver/OS, you may need:
+
 ```bash
 minikube tunnel
 ```
+
 Run it in a separate terminal.
 
 Update hosts file (example):
+
 ```bash
 echo "$(minikube ip) library.local" | sudo tee -a /etc/hosts
 ```
 
 ## Deploy with Helm (recommended)
+
+> Build local images first (see `docs/BUILD_IMAGES.md`) or override `backend.image` / `frontend.image`.
+
 ```bash
 helm upgrade --install neighborly ./helm-chart/neighborly-library \
   --create-namespace --namespace library \
@@ -38,23 +63,29 @@ helm upgrade --install neighborly ./helm-chart/neighborly-library \
 ```
 
 ## Deploy with plain manifests (alternative)
+
 ```bash
 kubectl apply -f k8s/00-namespace.yaml
 kubectl apply -f k8s/
 ```
 
 ## Smoke tests
+
 - Check pods:
+
 ```bash
 kubectl -n library get pods -o wide
 ```
+
 - Persistence test:
+
 ```bash
 kubectl -n library delete pod rails-backend-0
 kubectl -n library get pods -w
 ```
+
 - Security test (should TIMEOUT):
+
 ```bash
 kubectl -n library run hacker --rm -it --image=busybox -- wget -qO- http://rails-backend:80/healthz
 ```
-
