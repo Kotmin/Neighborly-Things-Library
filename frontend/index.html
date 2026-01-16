@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Sąsiedzka Biblioteka Rzeczy</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <header>
+    <h1>Sąsiedzka Biblioteka Rzeczy</h1>
+    <p class="subtitle">Wypożyczaj rzadko używane rzeczy sąsiadów: wiertarka, rzutnik, maszyna do szycia…</p>
+  </header>
+
+  <main>
+    <section class="card">
+      <h2>Dodaj przedmiot</h2>
+      <form id="create-item-form">
+        <div class="grid">
+          <label>
+            Nazwa
+            <input name="name" placeholder="np. Wiertarka" required />
+          </label>
+          <label>
+            Kategoria
+            <input name="category" placeholder="np. Narzędzia" required />
+          </label>
+          <label>
+            Stan
+            <input name="condition" placeholder="np. Dobry" required />
+          </label>
+          <label class="wide">
+            Opis
+            <input name="description" placeholder="opcjonalnie" />
+          </label>
+        </div>
+        <button type="submit">Dodaj</button>
+      </form>
+      <div id="create-item-result" class="hint"></div>
+    </section>
+
+    <section class="card">
+      <div class="row">
+        <h2>Lista przedmiotów</h2>
+        <button id="refresh">Odśwież</button>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Nazwa</th>
+              <th>Kategoria</th>
+              <th>Stan</th>
+              <th>Dostępny</th>
+              <th>Akcje</th>
+            </tr>
+          </thead>
+          <tbody id="items"></tbody>
+        </table>
+      </div>
+      <div id="items-result" class="hint"></div>
+    </section>
+
+    <section class="card">
+      <h2>Wypożycz / Zwróć</h2>
+      <div class="grid">
+        <label>
+          ID przedmiotu
+          <input id="item-id" type="number" min="1" placeholder="np. 1" />
+        </label>
+        <label>
+          Imię wypożyczającego
+          <input id="borrower-name" placeholder="np. Ania" />
+        </label>
+      </div>
+      <div class="row">
+        <button id="borrow">Wypożycz</button>
+        <button id="return">Zwróć</button>
+      </div>
+      <div id="loan-result" class="hint"></div>
+    </section>
+
+    <section class="card">
+      <h2>Healthcheck</h2>
+      <button id="health">Sprawdź /healthz</button>
+      <pre id="health-result"></pre>
+    </section>
+  </main>
+
+  <footer>
+    <small>Neighborly Things Library • Rails + SQLite + Nginx • Labs 1–12</small>
+  </footer>
+
+  <script src="/app.js"></script>
+</body>
+</html>

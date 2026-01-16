@@ -30,6 +30,8 @@ spec:
           volumeMounts:
             - name: nginx-config
               mountPath: /etc/nginx/conf.d
+            - name: frontend-static
+              mountPath: /usr/share/nginx/html
           readinessProbe:
             httpGet:
               path: /healthz
@@ -53,3 +55,6 @@ spec:
         - name: nginx-config
           configMap:
             name: frontend-nginx-config
+        - name: frontend-static
+          configMap:
+            name: frontend-static

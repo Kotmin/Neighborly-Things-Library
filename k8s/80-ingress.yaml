@@ -16,3 +16,13 @@ spec:
                 name: frontend
                 port:
                   number: 80
+    # Catch-all rule so the UI also works when accessing Minikube IP directly (no Host header match)
+    - http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: frontend
+                port:
+                  number: 80
