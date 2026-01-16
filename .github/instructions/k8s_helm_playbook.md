@@ -30,7 +30,7 @@ git submodule update --init --recursive
 eval "$(minikube docker-env)"
 
 cd neighborly_things_library
-docker build -t neighborly-backend:latest .
+docker build --target prod -t neighborly-backend:latest .
 ```
 
 Frontend uses the public `nginx:1.27` image and mounts static UI from ConfigMap (`frontend-static`).
@@ -57,9 +57,12 @@ echo "$(minikube ip) library.local" | sudo tee -a /etc/hosts
 > Build local images first (see `docs/BUILD_IMAGES.md`) or override `backend.image` / `frontend.image`.
 
 ```bash
+cd ..
 helm upgrade --install neighborly ./helm-chart/neighborly-library \
-  --create-namespace --namespace library \
-  --set-string backend.secret.SECRET_KEY_BASE="$(ruby -e 'require "securerandom"; puts SecureRandom.hex(64)')"
+  --namespace library \
+  --set backend.image=neighborly-backend:latest \
+  --set-string backend.secret.SECRET_KEY_BASE="$(ruby -e 'require \"securerandom\"; puts SecureRandom.hex(64)')"
+
 ```
 
 ## Deploy with plain manifests (alternative)

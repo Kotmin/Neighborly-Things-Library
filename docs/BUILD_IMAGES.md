@@ -18,12 +18,12 @@ This avoids pushing to a registry.
 eval "$(minikube docker-env)"
 cd neighborly_things_library
 
-docker build -t neighborly-backend:latest .
+docker build --target prod -t neighborly-backend:latest .
 
 
 # Optional: if you want a self-contained frontend image (instead of ConfigMap), build it from ./frontend
 # cd ../frontend
-# docker build -t neighborly-frontend:latest .
+# docker build --target prod -t neighborly-backend:latest .
 ```
 
 ## Option B: use a registry

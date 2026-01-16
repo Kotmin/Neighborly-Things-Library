@@ -88,8 +88,10 @@ Masz dwie ścieżki:
 **1) Helm (zalecane, Lab 11):**
 ```bash
 helm upgrade --install neighborly ./helm-chart/neighborly-library \
-  --namespace library --create-namespace \
+  --namespace library \
+  --set backend.image=neighborly-backend:latest \
   --set-string backend.secret.SECRET_KEY_BASE="$(ruby -e 'require \"securerandom\"; puts SecureRandom.hex(64)')"
+
 ```
 
 **2) Plain YAML (k8s/):**

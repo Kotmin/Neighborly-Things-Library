@@ -2,9 +2,12 @@
 
 ## Install/upgrade chart
 ```bash
+cd ..
 helm upgrade --install neighborly ./helm-chart/neighborly-library \
-  --create-namespace --namespace library \
-  --set-string backend.secret.SECRET_KEY_BASE="$(ruby -e 'require "securerandom"; puts SecureRandom.hex(64)')"
+  --namespace library \
+  --set backend.image=neighborly-backend:latest \
+  --set-string backend.secret.SECRET_KEY_BASE="$(ruby -e 'require \"securerandom\"; puts SecureRandom.hex(64)')"
+
 ```
 
 ## Render templates locally (debug)
