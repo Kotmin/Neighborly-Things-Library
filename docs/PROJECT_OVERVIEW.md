@@ -6,6 +6,10 @@ Ten dokument opisuje:
 3) przebieg wdrożenia (Helm i plain YAML),
 4) testy poprawności działania.
 
+Repo utrzymuje **dwie ścieżki wdrożenia**:
+- **Helm Chart** (zalecane do instalacji/parametryzacji),
+- **Plain manifests (`k8s/`)** jako deklaratywna wersja referencyjna.
+
 ---
 
 ## 1) Idea przykładowej aplikacji
@@ -27,13 +31,8 @@ Ten dokument opisuje:
 - `POST /api/loans`
 - `POST /api/returns`
 
-**Wybrany stack (wymagania):**
-- **JavaScript** (lekki frontend: HTML/CSS/JS)
-- **Ruby** (Rails)
-- **SQLite** (baza plikowa)
-- **Rails** (API + healthcheck)
-
-> Uwaga o “więcej JS”: wymaganie “JavaScript” jest spełnione przez frontend w JS. Celem projektu jest walidacja stacka i wdrożenia K8s, nie budowa rozbudowanego SPA.
+**Wybrany stack (wymagania):** JavaScript – Ruby – SQLite – Rails  
+> Wymaganie “JavaScript” jest spełnione przez frontend w JS. Celem projektu jest walidacja stacka + wdrożenia K8s (nie rozbudowane SPA).
 
 ---
 
@@ -43,13 +42,13 @@ Ten dokument opisuje:
 
 ### Obiekty K8s (minimum wymagane)
 - `StatefulSet` (backend Rails + SQLite)
-- `PersistentVolumeClaim` (trwałość pliku SQLite)
+- `PersistentVolumeClaim` (trwałość SQLite)
 - `Deployment` (frontend Nginx – bezstanowy)
-- `Service` (dla frontendu i backendu)
-- `ConfigMap` (konfiguracja, nginx config, frontend static)
+- `Service` (frontend + backend)
+- `ConfigMap` (konfiguracja Rails, config Nginx, statyczny frontend)
 - `Secret` (SECRET_KEY_BASE)
 - `Ingress` (`library.local`)
-- (bonus) `NetworkPolicy`, `HPA`, `probes`, `resources`
+- (bonus) `NetworkPolicy`, `HPA`, `probes`, `resources`, `PDB`, `startupProbe`
 
 ### Ruch w systemie (high level)
 
@@ -67,27 +66,21 @@ Pods: frontend (Nginx)
   |       \
   |        \  /api/*
   |         v
-  |      Service: backend (DNS)
+  |      Service: rails-backend-svc (ClusterIP)
   |         |
   v         v
-Static UI   Pod: rails-backend-0 (Rails + SQLite na PVC)
+Static UI   Pod: rails-backend-0 (StatefulSet, SQLite na PVC /rails/storage)
 ```
 
-### Helm vs plain `k8s/` – różnice w backend Service
+### Backend Services – headless vs ClusterIP
 
-Repo wspiera dwie ścieżki wdrożenia:
-
-- **Helm** (chart w `helm-chart/neighborly-library/`)
-  - Nginx proxy `/api/*` -> **`rails-backend-svc`** (Service ClusterIP)
-  - StatefulSet: `rails-backend` + PVC `/rails/storage`
-
-- **Plain YAML** (manifests w `k8s/`)
-  - Nginx proxy `/api/*` -> **`rails-backend`** (Service headless)
-  - Uwaga: w aktualnym stanie `k8s/` nadal używa ścieżki `/app/storage` (do ujednolicenia w refaktorze).
+Backend ma **dwa Service**:
+- `rails-backend` (**headless**, `clusterIP: None`) – wspiera StatefulSet (`serviceName`) i stabilną tożsamość/DNS poda.
+- `rails-backend-svc` (**ClusterIP**) – stabilny endpoint dla Nginx (`proxy_pass`) i testów.
 
 ### Dlaczego StatefulSet dla SQLite?
 
-SQLite to baza plikowa – zapis musi trafiać na trwały wolumen (PVC). Backend pozostaje pojedynczą instancją (brak bezpiecznego zapisu multi-replica). StatefulSet zapewnia:
+SQLite to baza plikowa – zapis musi trafiać na trwały wolumen (PVC). Backend pozostaje pojedynczą instancją (**replicas=1**) z powodu ograniczeń współbieżnego zapisu do jednego pliku DB. StatefulSet zapewnia:
 - stałą tożsamość poda (`rails-backend-0`),
 - powiązanie z tym samym PVC po restarcie.
 
@@ -112,8 +105,8 @@ minikube addons enable metrics-server
 
 ### B) Budowa obrazu backendu (ważne)
 
-Backend jest w katalogu `neighborly_things_library/` (submodule).
-Dockerfile ma różne stage – w K8s potrzebujesz **prod stage**.
+Backend jest w katalogu `neighborly_things_library/` (submodule).  
+Dockerfile ma różne stage – w K8s potrzebujesz **prod stage**:
 
 ```bash
 eval "$(minikube docker-env)"
@@ -140,7 +133,7 @@ kubectl apply -f k8s/
 
 ### D) Dostęp zewnętrzny (Ingress / hosts)
 
-1) IP minikube:
+1) IP minikube + ingress:
 
 ```bash
 minikube ip
@@ -151,7 +144,7 @@ kubectl -n library get ingress -o wide
 - standard: `<MINIKUBE_IP> library.local`
 
 > W zależności od drivera Minikube (np. Docker Desktop) czasem wymagany jest `minikube tunnel`.
-> Wtedy ingress może wystawić adres bliższy `127.0.0.1` – mapujesz host na to, co faktycznie widzisz w `kubectl get ingress -o wide`.
+> Mapuj host na to, co widzisz w `kubectl get ingress -o wide`.
 
 ---
 
@@ -163,7 +156,7 @@ kubectl -n library get ingress -o wide
 curl -sS -I http://library.local/
 ```
 
-Oczekiwane: `200 OK` i odpowiedź z Nginx.
+Oczekiwane: `200 OK` z Nginx.
 
 ### Test 2: Healthcheck backendu
 
@@ -175,12 +168,12 @@ Oczekiwane: `200` (JSON lub plain).
 
 ### Test 3: CRUD przedmiotów (API)
 
-Dodanie (wariant Rails-owy z `item:{...}`):
+Dodanie:
 
 ```bash
 curl -sS -i -X POST http://library.local/api/items \
   -H 'Content-Type: application/json' \
-  -d '{"item":{"name":"Wiertarka", "category":"Narzędzia","description":"Bosch"}}'
+  -d '{"item":{"name":"Wiertarka","description":"Bosch"}}'
 ```
 
 Lista:
@@ -191,25 +184,12 @@ curl -sS http://library.local/api/items
 
 ### Test 4: Trwałość danych (StatefulSet + PVC)
 
-1) Dodaj przedmiot (Test 3).  
+1) Dodaj przedmiot (Test 3).
 2) Usuń pod backendu:
 
 ```bash
 kubectl -n library delete pod rails-backend-0
 kubectl -n library wait --for=condition=Ready pod/rails-backend-0 --timeout=180s
-```
-
-```bash
-# wypożycz item_id=1
-curl -sS -X POST http://library.local/api/loans \
-  -H 'Content-Type: application/json' \
-  -d '{"item_id":1,"borrower_name":"Ania"}'
-
-# zwróć
-curl -sS -X POST http://library.local/api/returns \
-  -H 'Content-Type: application/json' \
-  -d '{"item_id":1}'
-
 ```
 
 3) Sprawdź listę – rekord powinien pozostać:
@@ -227,7 +207,7 @@ curl -sS http://library.local/api/items
 3. Poczekaj aż StatefulSet odtworzy poda.
 4. Sprawdź listę przedmiotów – rekord powinien istnieć.
 
-### Test 5: Izolacja NetworkPolicy
+### Test 5.1: Izolacja NetworkPolicy
 1. Uruchom tymczasowy pod i spróbuj dobrać się do backendu:
    ```bash
    kubectl run hacker --image=busybox -it --rm -n library -- sh
@@ -257,9 +237,6 @@ kubectl -n library exec -it "$FRONT_POD" -- sh -lc 'wget -qSO- http://rails-back
 
 Oczekiwane: `200 OK`.
 
-> Uwaga: w ścieżce plain YAML backend service nazywa się `rails-backend` (headless), więc testy DNS mogą się różnić.
-> Docelowo w refaktorze ujednolicimy service’y między Helm i k8s/.
-
 ### Test 6: HPA (autoskalowanie frontendu)
 
 1) HPA status:
@@ -283,19 +260,20 @@ watch kubectl -n library get hpa
 watch kubectl -n library get pods
 ```
 
-alt.
-1. Sprawdź HPA:
-   ```bash
-   kubectl get hpa -n library
-   ```
-2. Wygeneruj ruch (np. kilka razy odśwież UI lub curl w pętli) i obserwuj skalowanie.
+---
 
+## 5) Helm “TEST SUITE: None” (co to znaczy)
 
+Jeśli w `helm upgrade --install ...` widzisz `TEST SUITE: None`, oznacza to tylko, że chart **nie zawiera** zasobów testowych `helm test` (np. Pod/Job z adnotacją `helm.sh/hook: test`).
+
+W przyszłości można dodać prosty test chartu:
+- Job/Pod, który robi `curl http://rails-backend-svc/healthz` i `curl http://frontend/`,
+- uruchamiany przez `helm test neighborly -n library`.
 
 ---
 
 ## Powiązane pliki
 - `docs/README.md` – szybki start
 - `docs/BEST_PRACTICES.md` – zasady wdrożeniowe
-- `docs/BUILD_IMAGES.md` – budowa obrazów (backend + opcjonalnie frontend)
+- `docs/BUILD_IMAGES.md` – budowa obrazów
 - `.github/instructions/k8s_helm_playbook.md` – playbook dla agenta/CI
