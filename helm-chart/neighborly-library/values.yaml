@@ -11,6 +11,10 @@ backend:
     mountPath: /rails/storage
     # Rails will use this file via DATABASE_URL
     databaseUrl: sqlite3:/rails/storage/production.sqlite3
+  # Avoid flapping probes on slow cold start
+  startupProbe:
+    failureThreshold: 30
+    periodSeconds: 5
   resources:
     requests:
       cpu: 100m
@@ -34,6 +38,9 @@ frontend:
   replicas: 2
   static:
     enabled: true
+  pdb:
+    enabled: true
+    minAvailable: 1
   resources:
     requests:
       cpu: 50m
