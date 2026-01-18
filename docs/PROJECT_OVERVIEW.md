@@ -1,6 +1,10 @@
-# Sąsiedzka Biblioteka Rzeczy – opis projektu
+# Sąsiedzka Biblioteka Rzeczy – opis projektu (PROJECT_OVERVIEW)
 
-Ten dokument opisuje **ideę aplikacji**, **architekturę stacka**, **przebieg wdrożenia** na Minikube oraz **testy poprawności działania**.
+Ten dokument opisuje:
+1) ideę przykładowej aplikacji,
+2) architekturę stacka,
+3) przebieg wdrożenia (Helm i plain YAML),
+4) testy poprawności działania.
 
 ---
 
@@ -8,129 +12,193 @@ Ten dokument opisuje **ideę aplikacji**, **architekturę stacka**, **przebieg w
 
 **Nazwa:** Sąsiedzka Biblioteka Rzeczy (Neighborly Things Library)
 
-**Story:** mieszkańcy osiedla chcą współdzielić rzadko używane przedmioty (np. wiertarka, rzutnik, maszyna do szycia), aby nie kupować ich na własność.
+**Story:** mieszkańcy osiedla współdzielą rzadko używane przedmioty (np. wiertarka, rzutnik, maszyna do szycia), zamiast kupować je na własność.
 
-**Funkcje (MVP):**
-- Dodawanie „przedmiotów” do katalogu
-- Wyświetlanie listy przedmiotów + status dostępności
-- Wypożyczanie przedmiotu (przypisanie do pożyczającego)
-- Zwrot przedmiotu
+**MVP (funkcje):**
+- dodawanie „przedmiotów” do katalogu,
+- lista przedmiotów,
+- wypożyczenie przedmiotu,
+- zwrot przedmiotu,
+- healthcheck aplikacji.
 
-**Warstwy aplikacji:**
-- **Backend (Rails + SQLite):** API JSON (`/api/*`) + healthcheck (`/healthz`)
-- **Frontend (Nginx + statyczny JS):** prosta aplikacja web (HTML/CSS/JS) wywołująca API
+**API (Rails):**
+- `GET /healthz` (healthcheck)
+- `GET /api/items`, `POST /api/items`
+- `POST /api/loans`
+- `POST /api/returns`
 
-> Uwaga o „więcej JS”: wymagania stacka zawierają „JavaScript”, bo UI jest napisane w JS (tu: lekki, statyczny frontend). Rails w tym projekcie jest backendem API.
+**Wybrany stack (wymagania):**
+- **JavaScript** (lekki frontend: HTML/CSS/JS)
+- **Ruby** (Rails)
+- **SQLite** (baza plikowa)
+- **Rails** (API + healthcheck)
+
+> Uwaga o “więcej JS”: wymaganie “JavaScript” jest spełnione przez frontend w JS. Celem projektu jest walidacja stacka i wdrożenia K8s, nie budowa rozbudowanego SPA.
 
 ---
 
 ## 2) Architektura stack-a
 
-**Stack:** Ruby on Rails (Backend), SQLite (DB), Nginx (Frontend/Proxy), Kubernetes (Minikube)
+**Stack:** Ruby on Rails (Backend/API), SQLite (DB), Nginx (Frontend/Proxy), Kubernetes (Minikube)
 
-### Komponenty w klastrze
-- **Backend**: `StatefulSet` (1 replika) + `PVC` na plik SQLite
-- **Frontend**: `Deployment` (skalowalny) + `Service` (ClusterIP)
-- **Ingress**: routing hosta `library.local` do frontendu
-- **NetworkPolicy**: zasada *least privilege* (domyślnie deny-all, potem allow chain)
-- **HPA**: autoskalowanie frontendu na podstawie CPU
+### Obiekty K8s (minimum wymagane)
+- `StatefulSet` (backend Rails + SQLite)
+- `PersistentVolumeClaim` (trwałość pliku SQLite)
+- `Deployment` (frontend Nginx – bezstanowy)
+- `Service` (dla frontendu i backendu)
+- `ConfigMap` (konfiguracja, nginx config, frontend static)
+- `Secret` (SECRET_KEY_BASE)
+- `Ingress` (`library.local`)
+- (bonus) `NetworkPolicy`, `HPA`, `probes`, `resources`
 
-### Diagram przepływu ruchu
+### Ruch w systemie (high level)
 
 ```
-Internet/Browser
-   |
-   v
+Browser
+  |
+  v
 Ingress Controller (ingress-nginx)
-   |
-   v
-Service: library-frontend (ClusterIP)
-   |
-   v
-Pods: library-frontend (Nginx)
-   |        \
-   |         \  /api/*
-   |          v
-   |      Service: library-backend (Headless)
-   |          |
-   v          v
-Static UI   Pod: library-backend-0 (Rails + SQLite on PVC)
+  |
+  v
+Service: frontend (ClusterIP)
+  |
+  v
+Pods: frontend (Nginx)
+  |       \
+  |        \  /api/*
+  |         v
+  |      Service: backend (DNS)
+  |         |
+  v         v
+Static UI   Pod: rails-backend-0 (Rails + SQLite na PVC)
 ```
+
+### Helm vs plain `k8s/` – różnice w backend Service
+
+Repo wspiera dwie ścieżki wdrożenia:
+
+- **Helm** (chart w `helm-chart/neighborly-library/`)
+  - Nginx proxy `/api/*` -> **`rails-backend-svc`** (Service ClusterIP)
+  - StatefulSet: `rails-backend` + PVC `/rails/storage`
+
+- **Plain YAML** (manifests w `k8s/`)
+  - Nginx proxy `/api/*` -> **`rails-backend`** (Service headless)
+  - Uwaga: w aktualnym stanie `k8s/` nadal używa ścieżki `/app/storage` (do ujednolicenia w refaktorze).
 
 ### Dlaczego StatefulSet dla SQLite?
-SQLite to baza plikowa. Dane muszą być przechowywane na trwałym wolumenie (PVC), a backend nie może być bezpiecznie skalowany horyzontalnie dla zapisu. `StatefulSet` zapewnia:
-- stabilną tożsamość poda (`*-0`)
-- powiązanie z tym samym PVC po restarcie
+
+SQLite to baza plikowa – zapis musi trafiać na trwały wolumen (PVC). Backend pozostaje pojedynczą instancją (brak bezpiecznego zapisu multi-replica). StatefulSet zapewnia:
+- stałą tożsamość poda (`rails-backend-0`),
+- powiązanie z tym samym PVC po restarcie.
 
 ---
 
 ## 3) Przebieg wdrożenia
 
-Poniżej przebieg w modelu labowym (Minikube) – zgodny z PRD.
+### A) Przygotowanie klastra (Minikube)
 
-### A) Przygotowanie klastra
-1. Start Minikube z Calico (NetworkPolicy):
-   ```bash
-   minikube start --network-plugin=cni --cni=calico --cpus=2 --memory=4096
-   ```
-2. Włącz dodatki:
-   ```bash
-   minikube addons enable ingress
-   minikube addons enable metrics-server
-   ```
+1) Start Minikube z Calico (wymagane dla NetworkPolicy):
 
-### B) Budowa obrazów (lokalnie w Minikube)
-Zobacz: `docs/BUILD_IMAGES.md`.
-
-### C) Wdrożenie
-Masz dwie ścieżki:
-
-**1) Helm (zalecane, Lab 11):**
 ```bash
-helm upgrade --install neighborly ./helm-chart/neighborly-library \
-  --namespace library \
-  --set backend.image=neighborly-backend:latest \
-  --set-string backend.secret.SECRET_KEY_BASE="$(ruby -e 'require \"securerandom\"; puts SecureRandom.hex(64)')"
-
+minikube start --network-plugin=cni --cni=calico --cpus=2 --memory=4096
 ```
 
-**2) Plain YAML (k8s/):**
+2) Addons:
+
+```bash
+minikube addons enable ingress
+minikube addons enable metrics-server
+```
+
+### B) Budowa obrazu backendu (ważne)
+
+Backend jest w katalogu `neighborly_things_library/` (submodule).
+Dockerfile ma różne stage – w K8s potrzebujesz **prod stage**.
+
+```bash
+eval "$(minikube docker-env)"
+cd neighborly_things_library
+docker build --target prod -t neighborly-backend:latest .
+```
+
+### C) Wdrożenie (2 ścieżki)
+
+#### 1) Helm (zalecane)
+
+```bash
+helm upgrade --install neighborly ./helm-chart/neighborly-library \
+  --namespace library --create-namespace \
+  --set backend.image=neighborly-backend:latest \
+  --set-string backend.secret.SECRET_KEY_BASE="$(ruby -e 'require "securerandom"; puts SecureRandom.hex(64)')"
+```
+
+#### 2) Plain YAML (k8s/)
+
 ```bash
 kubectl apply -f k8s/
 ```
 
-### D) Dostęp zewnętrzny
-1. Ustal IP:
-   ```bash
-   minikube ip
-   kubectl get ingress -n library -o wide
-   ```
-2. Dodaj `library.local` do hosts:
-   - Najczęściej: `<MINIKUBE_IP> library.local`
-   - Jeśli używasz `minikube tunnel` i Ingress dostaje `127.0.0.1`, wtedy mapuj `127.0.0.1 library.local`
+### D) Dostęp zewnętrzny (Ingress / hosts)
+
+1) IP minikube:
+
+```bash
+minikube ip
+kubectl -n library get ingress -o wide
+```
+
+2) `/etc/hosts`:
+- standard: `<MINIKUBE_IP> library.local`
+
+> W zależności od drivera Minikube (np. Docker Desktop) czasem wymagany jest `minikube tunnel`.
+> Wtedy ingress może wystawić adres bliższy `127.0.0.1` – mapujesz host na to, co faktycznie widzisz w `kubectl get ingress -o wide`.
 
 ---
 
 ## 4) Test poprawności działania
 
-### Test 1: Healthcheck backendu
+### Test 1: Ingress + UI
+
+```bash
+curl -sS -I http://library.local/
+```
+
+Oczekiwane: `200 OK` i odpowiedź z Nginx.
+
+### Test 2: Healthcheck backendu
+
 ```bash
 curl -sS http://library.local/healthz
 ```
-Oczekiwane: JSON `{ "status": "ok" }`.
 
-### Test 2: CRUD przedmiotów
+Oczekiwane: `200` (JSON lub plain).
+
+### Test 3: CRUD przedmiotów (API)
+
+Dodanie (wariant Rails-owy z `item:{...}`):
+
 ```bash
-# dodaj przedmiot
-curl -sS -X POST http://library.local/api/items \
+curl -sS -i -X POST http://library.local/api/items \
   -H 'Content-Type: application/json' \
-  -d '{"item":{"name":"Wiertarka","category":"Narzędzia","condition":"Dobry","description":"Bosch"}}'
+  -d '{"item":{"name":"Wiertarka", "category":"Narzędzia","description":"Bosch"}}'
+```
 
-# pobierz listę
+Lista:
+
+```bash
 curl -sS http://library.local/api/items
 ```
 
-### Test 3: Wypożyczenie i zwrot
+### Test 4: Trwałość danych (StatefulSet + PVC)
+
+1) Dodaj przedmiot (Test 3).  
+2) Usuń pod backendu:
+
+```bash
+kubectl -n library delete pod rails-backend-0
+kubectl -n library wait --for=condition=Ready pod/rails-backend-0 --timeout=180s
+```
+
 ```bash
 # wypożycz item_id=1
 curl -sS -X POST http://library.local/api/loans \
@@ -141,9 +209,16 @@ curl -sS -X POST http://library.local/api/loans \
 curl -sS -X POST http://library.local/api/returns \
   -H 'Content-Type: application/json' \
   -d '{"item_id":1}'
+
 ```
 
-### Test 4: Trwałość danych (StatefulSet + PVC)
+3) Sprawdź listę – rekord powinien pozostać:
+
+```bash
+curl -sS http://library.local/api/items
+```
+
+### Test 4.5: Trwałość danych (StatefulSet + PVC)
 1. Dodaj przedmiot.
 2. Usuń backend pod:
    ```bash
@@ -160,17 +235,67 @@ curl -sS -X POST http://library.local/api/returns \
    ```
 2. Oczekiwane: **timeout / brak połączenia** (deny-all + brak allow).
 
+
+### Test 5: NetworkPolicy (least privilege)
+
+**A) “Hacker” (powinno być zablokowane):**
+
+```bash
+kubectl -n library run hacker --image=busybox -it --rm --restart=Never -- sh
+# w środku:
+wget -qO- http://rails-backend-svc/healthz
+```
+
+Oczekiwane: timeout / brak połączenia (jeśli polityka dopuszcza tylko frontend -> backend).
+
+**B) Test pozytywny (z frontendu):**
+
+```bash
+FRONT_POD="$(kubectl -n library get pod -l app=frontend -o jsonpath='{.items[0].metadata.name}')"
+kubectl -n library exec -it "$FRONT_POD" -- sh -lc 'wget -qSO- http://rails-backend-svc/healthz 2>&1 | head -n 20'
+```
+
+Oczekiwane: `200 OK`.
+
+> Uwaga: w ścieżce plain YAML backend service nazywa się `rails-backend` (headless), więc testy DNS mogą się różnić.
+> Docelowo w refaktorze ujednolicimy service’y między Helm i k8s/.
+
 ### Test 6: HPA (autoskalowanie frontendu)
+
+1) HPA status:
+
+```bash
+kubectl -n library get hpa
+kubectl -n library describe hpa frontend-hpa || true
+```
+
+2) Load generator:
+
+```bash
+kubectl -n library run load-generator --image=busybox -it --rm --restart=Never -- \
+  sh -c "while true; do wget -q -O- http://frontend >/dev/null; done"
+```
+
+3) Obserwuj skalowanie:
+
+```bash
+watch kubectl -n library get hpa
+watch kubectl -n library get pods
+```
+
+alt.
 1. Sprawdź HPA:
    ```bash
    kubectl get hpa -n library
    ```
 2. Wygeneruj ruch (np. kilka razy odśwież UI lub curl w pętli) i obserwuj skalowanie.
 
+
+
 ---
 
 ## Powiązane pliki
 - `docs/README.md` – szybki start
 - `docs/BEST_PRACTICES.md` – zasady wdrożeniowe
-- `docs/BUILD_IMAGES.md` – budowa obrazów (backend + frontend)
+- `docs/BUILD_IMAGES.md` – budowa obrazów (backend + opcjonalnie frontend)
 - `.github/instructions/k8s_helm_playbook.md` – playbook dla agenta/CI
