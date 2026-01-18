@@ -3,6 +3,9 @@ kind: ConfigMap
 metadata:
   name: rails-config
   namespace: library
+  labels:
+    app.kubernetes.io/name: neighborly-library
+    app.kubernetes.io/component: backend
 data:
   RAILS_ENV: "production"
   LOG_LEVEL: "info"

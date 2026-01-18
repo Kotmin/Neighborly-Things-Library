@@ -3,6 +3,9 @@ kind: ConfigMap
 metadata:
   name: frontend-static
   namespace: library
+  labels:
+    app.kubernetes.io/name: neighborly-library
+    app.kubernetes.io/component: frontend
 data:
   index.html: |
     <!doctype html>

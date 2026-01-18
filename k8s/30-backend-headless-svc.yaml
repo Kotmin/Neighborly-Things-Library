@@ -5,6 +5,8 @@ metadata:
   namespace: library
   labels:
     app: rails-backend
+    app.kubernetes.io/name: neighborly-library
+    app.kubernetes.io/component: backend
 spec:
   clusterIP: None
   selector:

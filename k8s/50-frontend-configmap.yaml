@@ -3,6 +3,9 @@ kind: ConfigMap
 metadata:
   name: frontend-nginx-config
   namespace: library
+  labels:
+    app.kubernetes.io/name: neighborly-library
+    app.kubernetes.io/component: frontend
 data:
   default.conf: |
     server {
@@ -15,7 +18,7 @@ data:
       }
 
       location /api/ {
-        proxy_pass http://rails-backend.library.svc.cluster.local:80;
+        proxy_pass http://rails-backend-svc.library.svc.cluster.local:80;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;

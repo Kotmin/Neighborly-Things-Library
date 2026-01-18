@@ -3,6 +3,10 @@ kind: StatefulSet
 metadata:
   name: rails-backend
   namespace: library
+  labels:
+    app: rails-backend
+    app.kubernetes.io/name: neighborly-library
+    app.kubernetes.io/component: backend
 spec:
   serviceName: rails-backend
   replicas: 1
@@ -13,7 +17,13 @@ spec:
     metadata:
       labels:
         app: rails-backend
+        app.kubernetes.io/name: neighborly-library
+        app.kubernetes.io/component: backend
     spec:
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: 30
+      securityContext:
+        fsGroup: 1000
       containers:
         - name: rails
           image: neighborly-backend:latest
@@ -28,10 +38,17 @@ spec:
                 name: rails-secrets
           env:
             - name: DATABASE_URL
-              value: "sqlite3:/app/storage/production.sqlite3"
+              value: "sqlite3:/rails/storage/production.sqlite3"
           volumeMounts:
             - name: sqlite-data
-              mountPath: /app/storage
+              mountPath: /rails/storage
+          startupProbe:
+            httpGet:
+              path: /healthz
+              port: 80
+            failureThreshold: 30
+            periodSeconds: 5
+            timeoutSeconds: 2
           readinessProbe:
             httpGet:
               path: /healthz
