@@ -1,0 +1,25 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: "{{ include "nl.frontendName" . }}-test-connection"
+  namespace: {{ include "nl.namespace" . }}
+  annotations:
+    "helm.sh/hook": test
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+  labels:
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/part-of: neighborly-things-library
+spec:
+  restartPolicy: Never
+  containers:
+    - name: curl
+      image: curlimages/curl:8.5.0
+      command: ["sh", "-c"]
+      args:
+        - >
+          set -euo pipefail;
+          echo "Checking frontend...";
+          curl -fsS "http://{{ include "nl.frontendName" . }}/" >/dev/null;
+          echo "Checking backend health...";
+          curl -fsS "http://{{ include "nl.backendName" . }}-svc/healthz" >/dev/null;
+          echo "OK";
