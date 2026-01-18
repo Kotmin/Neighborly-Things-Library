@@ -4,6 +4,10 @@ kind: ConfigMap
 metadata:
   name: frontend-static
   namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: neighborly-library
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/component: frontend
 data:
   index.html: |-
 {{ .Files.Get "files/frontend/index.html" | indent 4 }}

@@ -3,6 +3,10 @@ kind: ConfigMap
 metadata:
   name: frontend-nginx-config
   namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: neighborly-library
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/component: frontend
 data:
   default.conf: |
     server {

@@ -3,6 +3,10 @@ kind: ConfigMap
 metadata:
   name: rails-config
   namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: neighborly-library
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/component: backend
 data:
 {{- range $k, $v := .Values.backend.env }}
   {{ $k }}: {{ $v | quote }}

@@ -1,7 +1,7 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: {{ include "nl.backendName" . }}-svc
+  name: {{ include "nl.backendName" . }}
   namespace: {{ .Release.Namespace }}
   labels:
     app: {{ include "nl.backendName" . }}
@@ -9,7 +9,7 @@ metadata:
     app.kubernetes.io/instance: {{ .Release.Name }}
     app.kubernetes.io/component: backend
 spec:
-  type: ClusterIP
+  clusterIP: None
   selector:
     app: {{ include "nl.backendName" . }}
   ports:

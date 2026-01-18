@@ -5,6 +5,9 @@ metadata:
   namespace: {{ .Release.Namespace }}
   labels:
     app: {{ include "nl.backendName" . }}
+    app.kubernetes.io/name: neighborly-library
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/component: backend
 spec:
   serviceName: {{ include "nl.backendName" . }}
   replicas: {{ .Values.backend.replicas }}
@@ -15,7 +18,11 @@ spec:
     metadata:
       labels:
         app: {{ include "nl.backendName" . }}
+        app.kubernetes.io/name: neighborly-library
+        app.kubernetes.io/instance: {{ .Release.Name }}
+        app.kubernetes.io/component: backend
     spec:
+      automountServiceAccountToken: false
       terminationGracePeriodSeconds: 30
       securityContext:
         fsGroup: 1000
@@ -34,6 +41,13 @@ spec:
           volumeMounts:
             - name: sqlite-data
               mountPath: {{ .Values.backend.storage.mountPath | quote }}
+          startupProbe:
+            httpGet:
+              path: /healthz
+              port: {{ .Values.backend.port }}
+            failureThreshold: {{ .Values.backend.startupProbe.failureThreshold | default 30 }}
+            periodSeconds: {{ .Values.backend.startupProbe.periodSeconds | default 5 }}
+            timeoutSeconds: 2
           readinessProbe:
             httpGet:
               path: /healthz

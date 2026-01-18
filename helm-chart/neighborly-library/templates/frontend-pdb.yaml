@@ -1,0 +1,17 @@
+{{- if and (.Values.frontend.pdb.enabled | default true) (gt (int .Values.frontend.replicas) 1) }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "nl.frontendName" . }}-pdb
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: {{ include "nl.frontendName" . }}
+    app.kubernetes.io/name: neighborly-library
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/component: frontend
+spec:
+  minAvailable: {{ .Values.frontend.pdb.minAvailable | default 1 }}
+  selector:
+    matchLabels:
+      app: {{ include "nl.frontendName" . }}
+{{- end }}
