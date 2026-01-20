@@ -253,6 +253,18 @@ kubectl -n library run load-generator --image=busybox -it --rm --restart=Never -
   sh -c "while true; do wget -q -O- http://frontend >/dev/null; done"
 ```
 
+z ingress namespace 
+```bash
+kubectl -n ingress-nginx run load-generator --image=busybox -it --rm --restart=Never -- \
+  sh -c "while true; do wget -q -O- http://frontend.library.svc.cluster.local/ >/dev/null; done"
+
+```
+
+alt/ wariant z hosta
+```bash
+while true; do curl -sS http://library.local/ >/dev/null; done
+```
+
 3) Obserwuj skalowanie:
 
 ```bash
