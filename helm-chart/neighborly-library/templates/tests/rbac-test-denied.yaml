@@ -1,0 +1,42 @@
+{{- if and .Values.rbacDemo.enabled .Values.rbacDemo.tests.enabled }}
+apiVersion: v1
+kind: Pod
+metadata:
+  name: {{ printf "%s-rbac-denied" .Release.Name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: neighborly-library
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/component: test
+    app.kubernetes.io/part-of: rbac-demo
+  annotations:
+    "helm.sh/hook": test
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+spec:
+  restartPolicy: Never
+  serviceAccountName: {{ .Values.rbacDemo.deniedServiceAccountName | default (printf "%s-rbac-denied" .Release.Name) }}
+  automountServiceAccountToken: true
+  containers:
+    - name: curl
+      image: {{ .Values.rbacDemo.tests.image | quote }}
+      imagePullPolicy: IfNotPresent
+      command:
+        - sh
+        - -lc
+        - |
+          set -eu
+          TOKEN="$(cat /var/run/secrets/kubernetes.io/serviceaccount/token)"
+          NS="$(cat /var/run/secrets/kubernetes.io/serviceaccount/namespace)"
+          CACERT="/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"
+          URL="https://kubernetes.default.svc/api/v1/namespaces/${NS}/pods?limit=1"
+          CODE="$(curl -sS -o /tmp/body -w "%{http_code}" --cacert "$CACERT" -H "Authorization: Bearer $TOKEN" "$URL")"
+          echo "HTTP_CODE=$CODE"
+          head -c 300 /tmp/body || true
+          echo
+          if [ "$CODE" = "403" ]; then
+            echo "OK: RBAC denied as expected (403 Forbidden)."
+            exit 0
+          fi
+          echo "ERROR: expected 403, got $CODE"
+          exit 1
+{{- end }}

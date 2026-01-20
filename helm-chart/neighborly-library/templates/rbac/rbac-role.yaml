@@ -1,0 +1,15 @@
+{{- if .Values.rbacDemo.enabled }}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ .Values.rbacDemo.roleName | default (printf "%s-list-pods" .Release.Name) }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: neighborly-library
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/component: rbac
+rules:
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list", "watch"]
+{{- end }}
