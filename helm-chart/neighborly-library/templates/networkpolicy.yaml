@@ -21,10 +21,18 @@ spec:
   policyTypes:
     - Ingress
   ingress:
+    # Ingress Controller -> Frontend
     - from:
         - namespaceSelector:
             matchLabels:
               {{ .Values.networkPolicy.ingressNamespaceLabelKey }}: {{ .Values.networkPolicy.ingressNamespaceLabelValue }}
+      ports:
+        - protocol: TCP
+          port: {{ .Values.frontend.port }}
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/component: helm-test
       ports:
         - protocol: TCP
           port: {{ .Values.frontend.port }}
@@ -42,9 +50,14 @@ spec:
     - Ingress
   ingress:
     - from:
+        # Frontend -> Backend
         - podSelector:
             matchLabels:
-              app: {{ include "nl.frontendName" . }}
+              app.kubernetes.io/component: frontend
+        # Helm tests -> Backend
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/component: helm-test
       ports:
         - protocol: TCP
           port: {{ .Values.backend.port }}
