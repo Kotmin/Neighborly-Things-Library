@@ -1,12 +1,14 @@
 # Sąsiedzka Biblioteka Rzeczy – opis projektu (PROJECT_OVERVIEW)
 
 Ten dokument opisuje:
-1) ideę przykładowej aplikacji,
-2) architekturę stacka,
-3) przebieg wdrożenia (Helm i plain YAML),
-4) testy poprawności działania.
+
+1. ideę przykładowej aplikacji,
+2. architekturę stacka,
+3. przebieg wdrożenia (Helm i plain YAML),
+4. testy poprawności działania.
 
 Repo utrzymuje **dwie ścieżki wdrożenia**:
+
 - **Helm Chart** (zalecane do instalacji/parametryzacji),
 - **Plain manifests (`k8s/`)** jako deklaratywna wersja referencyjna.
 
@@ -19,6 +21,7 @@ Repo utrzymuje **dwie ścieżki wdrożenia**:
 **Story:** mieszkańcy osiedla współdzielą rzadko używane przedmioty (np. wiertarka, rzutnik, maszyna do szycia), zamiast kupować je na własność.
 
 **MVP (funkcje):**
+
 - dodawanie „przedmiotów” do katalogu,
 - lista przedmiotów,
 - wypożyczenie przedmiotu,
@@ -26,13 +29,15 @@ Repo utrzymuje **dwie ścieżki wdrożenia**:
 - healthcheck aplikacji.
 
 **API (Rails):**
+
 - `GET /healthz` (healthcheck)
 - `GET /api/items`, `POST /api/items`
 - `POST /api/loans`
 - `POST /api/returns`
 
-**Wybrany stack (wymagania):** JavaScript – Ruby – SQLite – Rails  
-> Wymaganie “JavaScript” jest spełnione przez frontend w JS. Celem projektu jest walidacja stacka + wdrożenia K8s (nie rozbudowane SPA).
+**Wybrany stack (wymagania):** JavaScript – Ruby – SQLite – Rails
+
+> Wymaganie “JavaScript” jest spełnione przez frontend (Nginx serwuje prosty UI w HTML/JS). Celem projektu jest walidacja stacka + wdrożenia K8s (nie rozbudowane SPA).
 
 ---
 
@@ -41,6 +46,7 @@ Repo utrzymuje **dwie ścieżki wdrożenia**:
 **Stack:** Ruby on Rails (Backend/API), SQLite (DB), Nginx (Frontend/Proxy), Kubernetes (Minikube)
 
 ### Obiekty K8s (minimum wymagane)
+
 - `StatefulSet` (backend Rails + SQLite)
 - `PersistentVolumeClaim` (trwałość SQLite)
 - `Deployment` (frontend Nginx – bezstanowy)
@@ -48,7 +54,12 @@ Repo utrzymuje **dwie ścieżki wdrożenia**:
 - `ConfigMap` (konfiguracja Rails, config Nginx, statyczny frontend)
 - `Secret` (SECRET_KEY_BASE)
 - `Ingress` (`library.local`)
-- (bonus) `NetworkPolicy`, `HPA`, `probes`, `resources`, `PDB`, `startupProbe`
+
+- `NetworkPolicy` (least privilege)
+- `HPA` (frontend)
+- `resources` (requests/limits) – wymagane dla HPA
+- `probes`: liveness/readiness/startup
+- `PDB`, `automountServiceAccountToken: false`
 
 ### Ruch w systemie (high level)
 
@@ -69,18 +80,20 @@ Pods: frontend (Nginx)
   |      Service: rails-backend-svc (ClusterIP)
   |         |
   v         v
-Static UI   Pod: rails-backend-0 (StatefulSet, SQLite na PVC /rails/storage)
+Static UI   Pod: rails-backend-0 (StatefulSet, SQLite na PVC (mountPath z values, np. /rails/storage))
 ```
 
 ### Backend Services – headless vs ClusterIP
 
 Backend ma **dwa Service**:
+
 - `rails-backend` (**headless**, `clusterIP: None`) – wspiera StatefulSet (`serviceName`) i stabilną tożsamość/DNS poda.
 - `rails-backend-svc` (**ClusterIP**) – stabilny endpoint dla Nginx (`proxy_pass`) i testów.
 
 ### Dlaczego StatefulSet dla SQLite?
 
 SQLite to baza plikowa – zapis musi trafiać na trwały wolumen (PVC). Backend pozostaje pojedynczą instancją (**replicas=1**) z powodu ograniczeń współbieżnego zapisu do jednego pliku DB. StatefulSet zapewnia:
+
 - stałą tożsamość poda (`rails-backend-0`),
 - powiązanie z tym samym PVC po restarcie.
 
@@ -90,13 +103,13 @@ SQLite to baza plikowa – zapis musi trafiać na trwały wolumen (PVC). Backend
 
 ### A) Przygotowanie klastra (Minikube)
 
-1) Start Minikube z Calico (wymagane dla NetworkPolicy):
+1. Start Minikube z Calico (wymagane dla NetworkPolicy):
 
 ```bash
 minikube start --network-plugin=cni --cni=calico --cpus=2 --memory=4096
 ```
 
-2) Addons:
+2. Addons:
 
 ```bash
 minikube addons enable ingress
@@ -112,6 +125,7 @@ Dockerfile ma różne stage – w K8s potrzebujesz **prod stage**:
 eval "$(minikube docker-env)"
 cd neighborly_things_library
 docker build --target prod -t neighborly-backend:latest .
+cd ..
 ```
 
 ### C) Wdrożenie (2 ścieżki)
@@ -128,22 +142,23 @@ helm upgrade --install neighborly ./helm-chart/neighborly-library \
 #### 2) Plain YAML (k8s/)
 
 ```bash
-kubectl apply -f k8s/
+kubectl apply -f k8s/ -n library-k8s
 ```
 
 ### D) Dostęp zewnętrzny (Ingress / hosts)
 
-1) IP minikube + ingress:
+1. IP minikube + ingress:
 
 ```bash
 minikube ip
 kubectl -n library get ingress -o wide
 ```
 
-2) `/etc/hosts`:
-- standard: `<MINIKUBE_IP> library.local`
+2. `/etc/hosts`:
 
-> W zależności od drivera Minikube (np. Docker Desktop) czasem wymagany jest `minikube tunnel`.
+- `<MINIKUBE_IP> library.local`
+
+> W zależności od drivera Minikube czasem wymagany jest `minikube tunnel`.
 > Mapuj host na to, co widzisz w `kubectl get ingress -o wide`.
 
 ---
@@ -164,7 +179,7 @@ Oczekiwane: `200 OK` z Nginx.
 curl -sS http://library.local/healthz
 ```
 
-Oczekiwane: `200` (JSON lub plain).
+Oczekiwane: `200`. (JSON lub plain).
 
 ### Test 3: CRUD przedmiotów (API)
 
@@ -184,37 +199,19 @@ curl -sS http://library.local/api/items
 
 ### Test 4: Trwałość danych (StatefulSet + PVC)
 
-1) Dodaj przedmiot (Test 3).
-2) Usuń pod backendu:
+1. Dodaj przedmiot (Test 3).
+2. Usuń pod backendu:
 
 ```bash
 kubectl -n library delete pod rails-backend-0
 kubectl -n library wait --for=condition=Ready pod/rails-backend-0 --timeout=180s
 ```
 
-3) Sprawdź listę – rekord powinien pozostać:
+3. Sprawdź listę – rekord powinien pozostać:
 
 ```bash
 curl -sS http://library.local/api/items
 ```
-
-### Test 4.5: Trwałość danych (StatefulSet + PVC)
-1. Dodaj przedmiot.
-2. Usuń backend pod:
-   ```bash
-   kubectl delete pod -n library rails-backend-0
-   ```
-3. Poczekaj aż StatefulSet odtworzy poda.
-4. Sprawdź listę przedmiotów – rekord powinien istnieć.
-
-### Test 5.1: Izolacja NetworkPolicy
-1. Uruchom tymczasowy pod i spróbuj dobrać się do backendu:
-   ```bash
-   kubectl run hacker --image=busybox -it --rm -n library -- sh
-   wget -qO- http://rails-backend:80/healthz
-   ```
-2. Oczekiwane: **timeout / brak połączenia** (deny-all + brak allow).
-
 
 ### Test 5: NetworkPolicy (least privilege)
 
@@ -226,7 +223,7 @@ kubectl -n library run hacker --image=busybox -it --rm --restart=Never -- sh
 wget -qO- http://rails-backend-svc/healthz
 ```
 
-Oczekiwane: timeout / brak połączenia (jeśli polityka dopuszcza tylko frontend -> backend).
+Oczekiwane: timeout / brak połączenia.
 
 **B) Test pozytywny (z frontendu):**
 
@@ -239,14 +236,15 @@ Oczekiwane: `200 OK`.
 
 ### Test 6: HPA (autoskalowanie frontendu)
 
-1) HPA status:
+1. HPA status:
 
 ```bash
 kubectl -n library get hpa
 kubectl -n library describe hpa frontend-hpa || true
+kubectl top pods -n library || true
 ```
 
-2) Load generator:
+2. Load generator (z istniejącego frontendu, żeby nie wpaść w blokady NetworkPolicy):
 
 ```bash
 kubectl -n library run load-generator --image=busybox -it --rm --restart=Never -- \
@@ -269,23 +267,29 @@ while true; do curl -sS http://library.local/ >/dev/null; done
 
 ```bash
 watch kubectl -n library get hpa
-watch kubectl -n library get pods
+watch kubectl -n library get pods -l app=frontend
 ```
 
 ---
 
-## 5) Helm “TEST SUITE: None” (co to znaczy)
+## 5) Helm test suite – co to znaczy?
 
-Jeśli w `helm upgrade --install ...` widzisz `TEST SUITE: None`, oznacza to tylko, że chart **nie zawiera** zasobów testowych `helm test` (np. Pod/Job z adnotacją `helm.sh/hook: test`).
+Jeśli w `helm upgrade --install ...` widzisz `TEST SUITE: None`, oznacza to, że chart **nie zawiera** zasobów testowych `helm test`
+(np. Pod/Job z adnotacją `helm.sh/hook: test`).
 
-W przyszłości można dodać prosty test chartu:
-- Job/Pod, który robi `curl http://rails-backend-svc/healthz` i `curl http://frontend/`,
+W tym repo plan zakłada posiadanie testu typu:
+
+- Pod/Job, który robi `curl` do `frontend` i do `rails-backend-svc/healthz`,
 - uruchamiany przez `helm test neighborly -n library`.
 
 ---
 
-## Powiązane pliki
-- `docs/README.md` – szybki start
-- `docs/BEST_PRACTICES.md` – zasady wdrożeniowe
-- `docs/BUILD_IMAGES.md` – budowa obrazów
-- `.github/instructions/k8s_helm_playbook.md` – playbook dla agenta/CI
+## 6) RBAC (
+
+RBAC w K8s to: **Role/RoleBinding** przypisywane do **Subject** (użytkownik/grupa/ServiceAccount) i ograniczające działania (verbs) na zasobach (resources).
+Najprostszy, zgodny z wykładem scenariusz to:
+
+- utworzyć ServiceAccount `mysa`,
+- utworzyć Role pozwalającą `list` na `pods`,
+- utworzyć RoleBinding wiążący Role z `mysa`,
+- uruchomić Pod wykorzystujący `mysa` i wykonać test `curl` do API server.
