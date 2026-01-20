@@ -31,6 +31,14 @@ spec:
         - name: nginx
           image: {{ .Values.frontend.image | quote }}
           imagePullPolicy: IfNotPresent
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 101
+            runAsGroup: 101
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
           ports:
             - name: http
               containerPort: {{ .Values.frontend.port }}
@@ -42,6 +50,10 @@ spec:
             - name: frontend-static
               mountPath: /usr/share/nginx/html
             {{- end }}
+            - name: nginx-cache
+              mountPath: /var/cache/nginx
+            - name: nginx-run
+              mountPath: /var/run
           readinessProbe:
             httpGet:
               path: /healthz
@@ -70,3 +82,7 @@ spec:
           configMap:
             name: frontend-static
         {{- end }}
+        - name: nginx-cache
+          emptyDir: {}
+        - name: nginx-run
+          emptyDir: {}
