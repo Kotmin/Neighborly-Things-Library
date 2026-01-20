@@ -32,3 +32,10 @@ open http://library.local
 
 You can also open `http://<minikube-ip>/` (catch-all ingress rule).
 If you use macOS + docker driver, you may need to run `minikube tunnel`.
+
+
+## Test
+
+```bash
+helm test neighborly -n library --logs
+```
