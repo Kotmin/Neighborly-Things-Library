@@ -66,3 +66,17 @@ networkPolicy:
   # Minikube ingress addon uses namespace: ingress-nginx
   ingressNamespaceLabelKey: kubernetes.io/metadata.name
   ingressNamespaceLabelValue: ingress-nginx
+
+# Creates ServiceAccounts + Role + RoleBinding and adds helm tests that
+# validate both the allowed and denied path.
+rbacDemo:
+  enabled: true
+  # If empty, chart will default to "<release>-rbac-allowed" / "<release>-rbac-denied"
+  allowedServiceAccountName: ""
+  deniedServiceAccountName: ""
+  # If empty, chart will default to "<release>-list-pods" and "<release>-list-pods-binding"
+  roleName: ""
+  roleBindingName: ""
+  tests:
+    enabled: true
+    image: curlimages/curl:8.5.0
