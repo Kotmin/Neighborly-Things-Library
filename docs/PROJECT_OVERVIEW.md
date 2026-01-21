@@ -293,3 +293,44 @@ Najprostszy, zgodny z wykładem scenariusz to:
 - utworzyć Role pozwalającą `list` na `pods`,
 - utworzyć RoleBinding wiążący Role z `mysa`,
 - uruchomić Pod wykorzystujący `mysa` i wykonać test `curl` do API server.
+
+
+## 7. Alt kubectl można ten deploy uruchomić z jako library-k8s 
+```bash
+kubectl create ns library-k8s --dry-run=client -o yaml | kubectl apply -f -
+kubectl -n library-k8s apply -f k8s/
+
+```
+
+check
+```bash
+kubectl -n library-k8s get pods,svc,ingress,hpa
+
+```
+
+manual test ingress
+```bash
+minikube ip
+kubectl -n library-k8s get ingress -o wide
+curl -sS -I http://library.local/
+curl -sS http://library.local/healthz
+
+```
+persistance
+```bash
+kubectl -n library-k8s delete pod rails-backend-0
+kubectl -n library-k8s wait --for=condition=Ready pod/rails-backend-0 --timeout=180s
+
+```
+cls
+```bash
+kubectl delete ns library-k8s
+
+```
+
+## Budowanie samego obrazu!!!
+```bash
+eval "$(minikube docker-env)"
+cd neighborly_things_library
+docker build -t neighborly-backend:latest .
+```
