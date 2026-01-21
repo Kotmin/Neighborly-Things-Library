@@ -254,8 +254,15 @@ Oczekiwane: `200`.
 
 Dodanie:
 ```bash
-curl -sS -i -X POST http://library.local/api/items   -H 'Content-Type: application/json'   -d '{"item":{"name":"Wiertarka","description":"Bosch"}}'
+curl -sS -i -X POST http://library.local/api/items   -H 'Content-Type: application/json'   -d '{"item":{"name":"Wiertarka","category":"Narzedzia","condition":"Dobry"}}'
 ```
+Krótka lista
+```bash
+curl -sS -i -X POST http://library.local/api/items   -H 'Content-Type: application/json'   -d '{"item":{"name":"Wiertarka","category":"Narzedzia","condition":"Dobry"}}'
+curl -sS -i -X POST http://library.local/api/items   -H 'Content-Type: application/json'   -d '{"item":{"name":"Rzutnik","category":"Potworek","condition":"Złowrogi"}}'
+curl -sS -i -X POST http://library.local/api/items   -H 'Content-Type: application/json'   -d '{"item":{"name":"Rower z ekrspresem do kawy","category":"Pojazd","condition":"Sprawny"}}'
+```
+
 
 Lista:
 ```bash
