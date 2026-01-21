@@ -2,7 +2,7 @@ apiVersion: apps/v1
 kind: StatefulSet
 metadata:
   name: rails-backend
-  namespace: library
+  namespace: library-k8s
   labels:
     app: rails-backend
     app.kubernetes.io/name: neighborly-library
