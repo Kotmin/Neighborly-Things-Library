@@ -334,3 +334,11 @@ eval "$(minikube docker-env)"
 cd neighborly_things_library
 docker build -t neighborly-backend:latest .
 ```
+
+## Podejrzenie logów z testów
+
+```bash
+helm test neighborly -n library
+kubectl -n library logs -l "helm.sh/hook=test" --tail=200 || true
+
+```
