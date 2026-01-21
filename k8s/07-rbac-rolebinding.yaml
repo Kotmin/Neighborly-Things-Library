@@ -1,0 +1,16 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: neighborly-list-pods-binding
+  namespace: library-k8s
+  labels:
+    app.kubernetes.io/name: neighborly-library
+    app.kubernetes.io/component: rbac
+subjects:
+  - kind: ServiceAccount
+    name: neighborly-rbac-allowed
+    namespace: library-k8s
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: neighborly-list-pods

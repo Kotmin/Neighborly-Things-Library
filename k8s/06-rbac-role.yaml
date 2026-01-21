@@ -1,0 +1,12 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: neighborly-list-pods
+  namespace: library-k8s
+  labels:
+    app.kubernetes.io/name: neighborly-library
+    app.kubernetes.io/component: rbac
+rules:
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list", "watch"]
