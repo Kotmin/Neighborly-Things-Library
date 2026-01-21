@@ -225,6 +225,12 @@ kubectl -n library-k8s get ingress -o wide
 2) `/etc/hosts`:
 - `<MINIKUBE_IP> library.local`
 
+```bash
+echo "$(minikube ip) library.local" | sudo tee -a /etc/hosts
+
+```
+
+
 > Zależnie od drivera czasem potrzebujesz `minikube tunnel`.
 > Mapuj host na to, co widzisz w `kubectl get ingress -o wide` (kolumna ADDRESS).
 
