@@ -330,6 +330,12 @@ kubectl -n library run load-generator --image=busybox -it --rm --restart=Never  
 ```bash
 while true; do curl -sS http://library.local/ >/dev/null; done
 ```
+- **wariant D (z użyciem skryptu pochodzącego z repo aplikacji):**
+```bash
+cd neighborly_things_library/ 
+SEED_ITEMS=20000 SEED_CONCURRENCY=20 BASE_URL=http://library.local/  ./scripts/api_smoke_and_bench.sh
+```
+
 
 3) Obserwuj skalowanie:
 ```bash
