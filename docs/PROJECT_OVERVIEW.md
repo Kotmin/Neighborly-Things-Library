@@ -105,7 +105,7 @@ Dodatkowe:
 - `HPA` (frontend)
 - `resources` (requests/limits) – wymagane dla HPA
 - `probes`: liveness/readiness/startup
-- `PDB`, `automountServiceAccountToken: false`
+- `PDB`, `automountServiceAccountToken: false`, `affinity/podAntiAffinity`
 - (w Helm) testy `helm test` + RBAC demo
 
 ### Ruch w systemie (high level)
@@ -135,8 +135,46 @@ Static UI   Pod: rails-backend-0 (StatefulSet, SQLite na PVC /rails/storage)
 Backend ma **dwa Service**:
 - `rails-backend` (**headless**, `clusterIP: None`) – wspiera StatefulSet (`spec.serviceName`) i stabilną tożsamość/DNS poda.
 - `rails-backend-svc` (**ClusterIP**) – stabilny endpoint dla Nginx (`proxy_pass`) i testów.
+
 ### Secrets i values
 W Helm domyślne ustawienia są w `helm-chart/neighborly-library/values.yaml`, a wartości wrażliwe (np. `SECRET_KEY_BASE`) przekazujemy w czasie instalacji/upgrade.
+
+
+Rails w trybie `production` wymaga ustawienia `SECRET_KEY_BASE`. W repo są dwie ścieżki wdrożenia:
+
+#### Helm (wymuszone przez `required`)
+W Helm Secret jest generowany z template i ma walidację:
+
+- template używa:
+  - `required "backend.secret.SECRET_KEY_BASE is required" .Values.backend.secret.SECRET_KEY_BASE`
+
+To znaczy: **jeśli nie podasz wartości – `helm upgrade/install` przerwie się z błędem** (celowe i bezpieczne).
+
+**Instalacja/upgrade z ustawieniem sekretu:**
+```bash
+helm upgrade --install neighborly ./helm-chart/neighborly-library \
+  --namespace library --create-namespace \
+  --set backend.image=neighborly-backend:latest \
+  --set-string backend.secret.SECRET_KEY_BASE="$(ruby -e 'require "securerandom"; puts SecureRandom.hex(64)')"
+```
+
+**Kolejne upgrady (bez ponownego generowania):**
+```bash
+helm upgrade neighborly ./helm-chart/neighborly-library -n library --reuse-values
+```
+
+#### Plain manifests (`k8s/`) – placeholder + podmiana przy deployu
+W `k8s/` Secret ma placeholder:
+- `SECRET_KEY_BASE: "replace-me-with-a-real-secret"`
+
+**Bezpieczna praktyka:** nie commitujemy prawdziwych sekretów. Podmieniamy je w czasie wdrożenia, np.:
+
+Opcja A (wygeneruj i zastosuj Secret bez edycji pliku):
+```bash
+kubectl -n library-k8s create secret generic rails-secrets \
+  --from-literal=SECRET_KEY_BASE="$(ruby -e 'require "securerandom"; puts SecureRandom.hex(64)')" \
+  --dry-run=client -o yaml | kubectl apply -f -
+```
 
 ### Dlaczego StatefulSet dla SQLite?
 
@@ -146,6 +184,8 @@ StatefulSet zapewnia:
 - powiązanie z tym samym PVC po restarcie.
 
 > Jeśli kiedykolwiek chcesz **2 instancje backendu**, w praktyce oznacza to zmianę DB (np. Postgres) albo inny model persystencji.
+
+
 
 ---
 
@@ -432,3 +472,48 @@ helm upgrade --install neighborly ./helm-chart/neighborly-library   --namespace 
 kubectl -n library get pods,svc,ingress,hpa
 helm test neighborly -n library
 ```
+
+## 8) Affinity (frontend) – rozkład replik na węzłach
+
+Dla frontendu (`Deployment`) dodaliśmy **podAntiAffinity** w trybie *soft* (`preferredDuringSchedulingIgnoredDuringExecution`).
+Cel: gdy klaster ma **więcej niż 1 node**, Kubernetes będzie **preferował rozkład replik frontendu na różne węzły** (`topologyKey: kubernetes.io/hostname`).
+Na 1-node Minikube ta reguła nie zmienia zachowania, ale też **nie psuje schedulingu**.
+
+### Co dokładnie dodaliśmy?
+W `Deployment` frontendu (Helm i analogicznie w plain, jeśli utrzymujesz oba źródła) jest:
+
+- `affinity.podAntiAffinity.preferredDuringSchedulingIgnoredDuringExecution`
+- selector po labelu `app: frontend` (w Helm: `{{ include "nl.frontendName" . }}`)
+
+### Jak to przetestować 
+
+
+1) Uruchom Minikube jako multi-node (np. 2 węzły):
+```bash
+minikube delete
+minikube start --nodes=2 --network-plugin=cni --cni=calico --cpus=2 --memory=4096
+minikube addons enable ingress
+minikube addons enable metrics-server
+kubectl get nodes -o wide
+```
+
+2) Zainstaluj chart (lub odtwórz plain), a potem sprawdź na jakich node’ach stoją pody:
+```bash
+kubectl -n library get pods -l app=frontend -o wide
+```
+
+Oczekiwane: przy `replicas >= 2` zobaczysz pody na różnych node’ach (o ile scheduler ma taką możliwość).
+
+3) Dodatkowo podejrzyj decyzje schedulera:
+```bash
+kubectl -n library describe pod -l app=frontend | sed -n '1,120p'
+```
+
+### Alternatywa: topologySpreadConstraints
+Zamiast (lub obok) `podAntiAffinity` można użyć `topologySpreadConstraints`, które często są czytelniejsze do “równomiernego” rozkładania podów:
+
+- `topologyKey: kubernetes.io/hostname`
+- `maxSkew: 1`
+- `whenUnsatisfiable: ScheduleAnyway` (soft) lub `DoNotSchedule` (hard)
+
+Tylko rozważenie – szczególnie jeśli chcemy precyzyjnej kontroli rozkładu replik.
