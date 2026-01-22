@@ -135,6 +135,8 @@ Static UI   Pod: rails-backend-0 (StatefulSet, SQLite na PVC /rails/storage)
 Backend ma **dwa Service**:
 - `rails-backend` (**headless**, `clusterIP: None`) – wspiera StatefulSet (`spec.serviceName`) i stabilną tożsamość/DNS poda.
 - `rails-backend-svc` (**ClusterIP**) – stabilny endpoint dla Nginx (`proxy_pass`) i testów.
+### Secrets i values
+W Helm domyślne ustawienia są w `helm-chart/neighborly-library/values.yaml`, a wartości wrażliwe (np. `SECRET_KEY_BASE`) przekazujemy w czasie instalacji/upgrade.
 
 ### Dlaczego StatefulSet dla SQLite?
 
